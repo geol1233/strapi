@@ -313,9 +313,30 @@ module.exports = function createQueryBuilder({ model, strapi }) {
     const joinModel = model.componentsJoinModel;
     const { foreignKey } = joinModel;
 
-    const updateOrCreateComponentAndLink = async ({ componentModel, key, value, order }) => {
-      // check if value has an id then update else create
+    const updateOrCreateComponentAndLink = async ({
+      componentModel,
+      key,
+      value,
+      order,
+      orderOnly,
+    }) => {
       if (_.has(value, componentModel.primaryKey)) {
+        if (orderOnly) {
+          return joinModel
+            .where({
+              [foreignKey]: entry.id,
+              component_type: componentModel.collectionName,
+              component_id: value[componentModel.primaryKey],
+              field: key,
+            })
+            .save(
+              {
+                order,
+              },
+              { transacting, patch: true, require: false }
+            );
+        }
+
         return strapi
           .query(componentModel.uid)
           .update(
@@ -382,14 +403,56 @@ module.exports = function createQueryBuilder({ model, strapi }) {
               transacting,
             });
 
+            const existingComponents = (
+              await componentModel
+                .where(qb => {
+                  qb.whereIn(
+                    componentModel.primaryKey,
+                    componentValue
+                      .filter(value => value[componentModel.primaryKey])
+                      .map(value => value[componentModel.primaryKey])
+                  );
+                })
+                .fetchAll({ withRelated: [], transacting })
+            ).toJSON();
+
+            const allJoined = (
+              await joinModel
+                .where({
+                  [joinModel.foreignKey]: entry.id,
+                  field: key,
+                })
+                .fetchAll({ transacting })
+            ).toJSON();
+            console.log('componentModel', componentModel);
+            const changedEntries = componentValue.map((value, idx) => {
+              const exisitngEntity = existingComponents.find(
+                existing => existing[componentModel.primaryKey] === value[componentModel.primaryKey]
+              );
+              const exisitngJoin = allJoined.find(
+                existing => existing.component_id === value[componentModel.primaryKey]
+              );
+              if (
+                exisitngEntity &&
+                exisitngJoin &&
+                _.isEqual(_.pickBy(value, _.identity), _.pickBy(exisitngEntity, _.identity)) &&
+                (exisitngJoin.order === idx + 1 || componentModel.options.disableOrdering)
+              ) {
+                return;
+              }
+              return {
+                componentModel,
+                key,
+                value,
+                order: idx + 1,
+                orderOnly:
+                  exisitngJoin &&
+                  _.isEqual(_.pickBy(value, _.identity), _.pickBy(exisitngEntity, _.identity)),
+              };
+            });
             await Promise.all(
-              componentValue.map((value, idx) => {
-                return updateOrCreateComponentAndLink({
-                  componentModel,
-                  key,
-                  value,
-                  order: idx + 1,
-                });
+              _.filter(changedEntries).map(value => {
+                return updateOrCreateComponentAndLink(value);
               })
             );
           } else {
