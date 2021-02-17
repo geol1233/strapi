@@ -424,7 +424,7 @@ module.exports = function createQueryBuilder({ model, strapi }) {
                 })
                 .fetchAll({ transacting })
             ).toJSON();
-            console.log('componentModel', componentModel);
+
             const changedEntries = componentValue.map((value, idx) => {
               const exisitngEntity = existingComponents.find(
                 existing => existing[componentModel.primaryKey] === value[componentModel.primaryKey]
