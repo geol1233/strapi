@@ -11,6 +11,7 @@ const { contentTypes: contentTypesUtils } = require('strapi-utils');
 const { singular } = require('pluralize');
 const { handleDatabaseError } = require('./utils/errors');
 
+const throwDatabaseErrors = _.get(strapi.config, ['database', 'throwDatabaseErrors'], false);
 const { PUBLISHED_AT_ATTRIBUTE } = contentTypesUtils.constants;
 const pickCountFilters = omit(['sort', 'limit', 'start']);
 
@@ -55,7 +56,11 @@ module.exports = function createQueryBuilder({ model, strapi }) {
     try {
       return await fn(...args);
     } catch (error) {
-      return handleDatabaseError(error);
+      if (throwDatabaseErrors !== true) {
+        return handleDatabaseError(error);
+      } else {
+        throw error;
+      }
     }
   };
 
