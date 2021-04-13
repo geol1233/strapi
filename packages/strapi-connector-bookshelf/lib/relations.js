@@ -221,9 +221,11 @@ module.exports = {
         case 'manyToMany': {
           const storedValue = transformToArrayID(response[current]);
           const currentValue = transformToArrayID(params.values[current]);
+          
+          const isEqual = _.isEqual(currentValue, storedValue);
 
-          const toAdd = _.difference(currentValue, storedValue);
-          const toRemove = _.difference(storedValue, currentValue);
+          const toAdd = isEqual ? [] : currentValue;
+          const toRemove = isEqual ? [] : storedValue;
 
           const collection = this.forge({
             [this.primaryKey]: primaryKeyValue,
