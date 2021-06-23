@@ -437,10 +437,18 @@ module.exports = function createQueryBuilder({ model, strapi }) {
               const exisitngJoin = allJoined.find(
                 existing => existing.component_id === value[componentModel.primaryKey]
               );
+              // fix for media not nullable, affects only this plugin
+              const containsPlugins = _.find(componentModel.attributes, compAttr => {
+                return compAttr.plugin === 'upload';
+              });
+
+              const isEqual =
+                _.isEqual(_.pickBy(value, _.identity), _.pickBy(exisitngEntity, _.identity)) &&
+                !containsPlugins;
               if (
                 exisitngEntity &&
                 exisitngJoin &&
-                _.isEqual(_.pickBy(value, _.identity), _.pickBy(exisitngEntity, _.identity)) &&
+                isEqual &&
                 (exisitngJoin.order === idx + 1 || componentModel.options.disableOrdering)
               ) {
                 return;
@@ -450,9 +458,7 @@ module.exports = function createQueryBuilder({ model, strapi }) {
                 key,
                 value,
                 order: idx + 1,
-                orderOnly:
-                  exisitngJoin &&
-                  _.isEqual(_.pickBy(value, _.identity), _.pickBy(exisitngEntity, _.identity)),
+                orderOnly: exisitngJoin && isEqual,
               };
             });
             await Promise.all(
